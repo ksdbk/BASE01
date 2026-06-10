@@ -126,6 +126,33 @@ footer{background:var(--black);padding:60px 40px 32px;}
 .add-to-cart:hover{opacity:.7;}
 .close-modal{position:absolute;top:12px;right:12px;background:none;border:none;font-size:18px;cursor:pointer;color:rgba(0,0,0,.3);}
 
+/* PRODUCT PAGE OVERLAY */
+.product-overlay{display:none;position:fixed;inset:0;background:rgba(8,8,8,.92);z-index:600;align-items:stretch;justify-content:center;}
+.product-overlay.open{display:flex;}
+.product-page{display:grid;grid-template-columns:1fr 1fr;width:100%;max-width:1100px;margin:auto;background:var(--white);position:relative;max-height:100vh;overflow:hidden;}
+.pp-gallery{position:relative;background:var(--bone);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.pp-gallery img{width:100%;height:100%;object-fit:cover;display:block;transition:opacity .25s;}
+.pp-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(8,8,8,.55);color:#fff;border:none;font-size:22px;padding:10px 14px;cursor:pointer;z-index:2;transition:background .2s;line-height:1;}
+.pp-arrow:hover{background:rgba(8,8,8,.85);}
+.pp-arrow-prev{left:12px;}
+.pp-arrow-next{right:12px;}
+.pp-dots{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:2;}
+.pp-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.35);border:none;cursor:pointer;padding:0;transition:background .2s;}
+.pp-dot.active{background:#fff;}
+.pp-info{padding:52px 44px;display:flex;flex-direction:column;justify-content:center;overflow-y:auto;}
+.pp-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:rgba(0,0,0,.3);z-index:10;line-height:1;}
+.pp-close:hover{color:var(--black);}
+.pp-brand{font-family:var(--mono);font-size:7px;letter-spacing:.25em;text-transform:uppercase;color:rgba(0,0,0,.35);margin-bottom:10px;}
+.pp-name{font-family:var(--display);font-size:clamp(36px,4vw,62px);line-height:.9;letter-spacing:.03em;color:var(--black);margin-bottom:16px;}
+.pp-price{font-family:var(--mono);font-size:13px;letter-spacing:.12em;color:rgba(0,0,0,.45);margin-bottom:36px;}
+.pp-divider{width:32px;height:1px;background:rgba(0,0,0,.12);margin-bottom:28px;}
+.pp-img-thumbs{display:flex;gap:8px;margin-bottom:36px;flex-wrap:wrap;}
+.pp-thumb{width:52px;height:64px;object-fit:cover;cursor:pointer;opacity:.45;transition:opacity .2s;border:1px solid transparent;}
+.pp-thumb.active{opacity:1;border-color:var(--black);}
+.pp-add{width:100%;background:var(--black);color:var(--white);border:none;padding:16px;font-family:var(--display);font-size:22px;letter-spacing:.1em;cursor:pointer;transition:opacity .2s;margin-top:auto;}
+.pp-add:hover{opacity:.75;}
+.pp-tag{display:inline-block;font-family:var(--mono);font-size:7px;letter-spacing:.2em;text-transform:uppercase;color:var(--black);border:1px solid rgba(0,0,0,.15);padding:4px 8px;margin-bottom:20px;}
+
 /* EDIT TOGGLE — always visible */
 .edit-toggle{position:fixed;bottom:20px;right:20px;background:var(--black);color:var(--white);border:1px solid rgba(255,255,255,.2);font-family:var(--mono);font-size:8px;letter-spacing:.2em;text-transform:uppercase;padding:9px 16px;cursor:pointer;z-index:9999;}
 .edit-toggle.active{background:var(--red);border-color:var(--red);}
@@ -191,6 +218,27 @@ footer{background:var(--black);padding:60px 40px 32px;}
 <body>
 
 <div class="cursor hover" id="cursor" style="left: 283px; top: 898px;"></div>
+
+<!-- Product page overlay -->
+<div class="product-overlay" id="productOverlay">
+  <div class="product-page">
+    <button class="pp-close" onclick="closeProductPage()">×</button>
+    <div class="pp-gallery" id="ppGallery">
+      <img id="ppMainImg" src="" alt="">
+      <button class="pp-arrow pp-arrow-prev" onclick="ppNav(-1)">&#8249;</button>
+      <button class="pp-arrow pp-arrow-next" onclick="ppNav(1)">&#8250;</button>
+      <div class="pp-dots" id="ppDots"></div>
+    </div>
+    <div class="pp-info">
+      <div class="pp-brand" id="ppBrand"></div>
+      <div class="pp-name" id="ppName"></div>
+      <div class="pp-price" id="ppPrice"></div>
+      <div class="pp-divider"></div>
+      <div class="pp-img-thumbs" id="ppThumbs"></div>
+      <button class="pp-add" onclick="addToCartFromPage()">Add to cart →</button>
+    </div>
+  </div>
+</div>
 
 <!-- Cart modal -->
 <div class="overlay" id="cartOverlay">
@@ -682,10 +730,55 @@ function filterProducts(cat,btn){
   renderProducts(cat==='all'?products:products.filter(function(p){return p.category===cat;}));
 }
 
+// ---- PRODUCT PAGE ----
+var _ppIdx=0;
+function openCart(id){
+  currentProduct=products.find(function(p){return p.id===id;});
+  if(!currentProduct)return;
+  _ppIdx=0;
+  var imgs=currentProduct.images&&currentProduct.images.length?currentProduct.images:[];
+  // main image
+  var mainImg=document.getElementById('ppMainImg');
+  mainImg.src=imgs.length?imgs[0]:'';
+  mainImg.style.display=imgs.length?'block':'none';
+  // arrows visibility
+  document.querySelector('.pp-arrow-prev').style.display=imgs.length>1?'':'none';
+  document.querySelector('.pp-arrow-next').style.display=imgs.length>1?'':'none';
+  // dots
+  var dots=document.getElementById('ppDots');dots.innerHTML='';
+  imgs.forEach(function(_,i){var d=document.createElement('button');d.className='pp-dot'+(i===0?' active':'');d.onclick=function(){ppGoTo(i);};dots.appendChild(d);});
+  // thumbs
+  var thumbs=document.getElementById('ppThumbs');thumbs.innerHTML='';
+  imgs.forEach(function(src,i){var t=document.createElement('img');t.className='pp-thumb'+(i===0?' active':'');t.src=src;t.onclick=function(){ppGoTo(i);};thumbs.appendChild(t);});
+  // info
+  document.getElementById('ppBrand').textContent=currentProduct.brand;
+  document.getElementById('ppName').textContent=currentProduct.name;
+  document.getElementById('ppPrice').textContent=currentProduct.price;
+  document.getElementById('productOverlay').classList.add('open');
+  history.pushState(null,'','#'+encodeURIComponent(id));
+}
+function closeProductPage(){document.getElementById('productOverlay').classList.remove('open');history.pushState(null,'','#');}
+function ppGoTo(i){
+  var imgs=currentProduct.images||[];
+  if(i<0||i>=imgs.length)return;
+  _ppIdx=i;
+  document.getElementById('ppMainImg').src=imgs[i];
+  document.querySelectorAll('.pp-dot').forEach(function(d,j){d.classList.toggle('active',j===i);});
+  document.querySelectorAll('.pp-thumb').forEach(function(t,j){t.classList.toggle('active',j===i);});
+}
+function ppNav(dir){var imgs=currentProduct.images||[];ppGoTo((_ppIdx+dir+imgs.length)%imgs.length);}
+document.getElementById('productOverlay').addEventListener('click',function(e){if(e.target===this)closeProductPage();});
+document.addEventListener('keydown',function(e){
+  if(!document.getElementById('productOverlay').classList.contains('open'))return;
+  if(e.key==='ArrowRight')ppNav(1);
+  if(e.key==='ArrowLeft')ppNav(-1);
+  if(e.key==='Escape')closeProductPage();
+});
+
 // ---- CART ----
-function openCart(id){currentProduct=products.find(function(p){return p.id===id;});if(!currentProduct)return;document.getElementById('modalBrand').textContent=currentProduct.brand;document.getElementById('modalName').textContent=currentProduct.name;document.getElementById('modalPrice').textContent=currentProduct.price;document.getElementById('cartOverlay').classList.add('open');history.pushState(null,'','#'+encodeURIComponent(id));}
 function closeCart(){document.getElementById('cartOverlay').classList.remove('open');history.pushState(null,'','#');}
 function addToCart(){cartCount++;document.getElementById('cartBtn').textContent='— ('+cartCount+')';closeCart();}
+function addToCartFromPage(){cartCount++;document.getElementById('cartBtn').textContent='— ('+cartCount+')';closeProductPage();}
 document.getElementById('cartOverlay').addEventListener('click',function(e){if(e.target===this)closeCart();});
 
 // ---- GALLERY NAV ----
